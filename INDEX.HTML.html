@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi catálogo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f8f7;--card:#fff;--ink:#14221f;--muted:#5d6b67;--line:#dde4e1;--accent:#0f7a5c;--accent-ink:#fff;--chip:#e8efec}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1614;--card:#16211e;--ink:#eaf2ef;--muted:#9aaba6;--line:#26352f;--accent:#2fbf94;--accent-ink:#06231b;--chip:#1d2b27}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Figtree,system-ui,sans-serif;line-height:1.5}
+header{padding:40px 20px 8px;max-width:1100px;margin:0 auto}
+h1{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:clamp(2rem,6vw,3.2rem);line-height:1.05;margin:0 0 8px;font-weight:800;letter-spacing:-.02em}
+header p{margin:0;color:var(--muted);max-width:50ch}
+.tools{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 20px;max-width:1100px;margin:0 auto}
+.search{width:100%;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;margin-bottom:12px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:0;background:var(--chip);color:var(--ink);padding:9px 16px;border-radius:999px;font:inherit;font-weight:500;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+.chip:focus-visible,.buy:focus-visible,.search:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+main{max-width:1100px;margin:0 auto;padding:8px 20px 80px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.pic{aspect-ratio:1/1;background:var(--chip);display:grid;place-items:center;font:800 4rem 'Bricolage Grotesque',sans-serif;color:var(--accent)}
+.pic img{width:100%;height:100%;object-fit:cover;display:block}
+.body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.cat{font-size:.85rem;color:var(--muted)}
+.name{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1.15rem;margin:0}
+.desc{font-size:.92rem;color:var(--muted);margin:0;flex:1}
+.price{font-weight:600;font-size:1.1rem;margin-top:4px}
+.buy{display:block;text-align:center;text-decoration:none;background:var(--accent);color:var(--accent-ink);padding:12px;border-radius:12px;font-weight:600;margin-top:8px}
+.empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 0}
+.float{position:fixed;right:16px;bottom:16px;background:var(--accent);color:var(--accent-ink);padding:14px 20px;border-radius:999px;text-decoration:none;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Nuestro catálogo</h1>
+  <p>Elige lo que te guste y escríbenos por WhatsApp para comprar.</p>
+</header>
+
+<div class="tools">
+  <input class="search" id="q" type="search" placeholder="Buscar producto…" aria-label="Buscar producto">
+  <div class="chips" id="chips"></div>
+</div>
+
+<main id="grid"></main>
+
+<a class="float" id="ask" href="#" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>
+
+<script>
+/* ============ 1) CONFIGURA AQUÍ ============ */
+const WHATSAPP = "573005343114";   // 57 = Colombia + tu número, sin espacios ni signos
+const NEGOCIO  = "mi tienda";      // nombre que aparece en el mensaje
+
+/* ============ 2) TUS PRODUCTOS ============
+   categoria: usa el mismo nombre exacto para agrupar (se crean solos los filtros)
+   precio: solo números, sin puntos (ej. 45000)
+   imagen: enlace a la foto, o "fotos/archivo.jpg" si la subes junto a este archivo. Déjalo "" si no tienes. */
+const PRODUCTOS = [
+  {nombre:"Producto de ejemplo 1", categoria:"Categoría A", precio:25000, descripcion:"Describe aquí tu producto en una línea.", imagen:""},
+  {nombre:"Producto de ejemplo 2", categoria:"Categoría A", precio:38000, descripcion:"Describe aquí tu producto en una línea.", imagen:""},
+  {nombre:"Producto de ejemplo 3", categoria:"Categoría B", precio:54000, descripcion:"Describe aquí tu producto en una línea.", imagen:""},
+  {nombre:"Producto de ejemplo 4", categoria:"Categoría B", precio:12000, descripcion:"Describe aquí tu producto en una línea.", imagen:""},
+  {nombre:"Producto de ejemplo 5", categoria:"Categoría C", precio:89000, descripcion:"Describe aquí tu producto en una línea.", imagen:""},
+  {nombre:"Producto de ejemplo 6", categoria:"Categoría C", precio:19900, descripcion:"Describe aquí tu producto en una línea.", imagen:""}
+];
+
+/* ============ 3) LÓGICA (no necesitas tocar) ============ */
+const wa = txt => `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(txt)}`;
+const cop = n => new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(n);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let categoria = "Todos", texto = "";
+const categorias = ["Todos", ...new Set(PRODUCTOS.map(p => p.categoria))];
+
+function pintarFiltros(){
+  document.getElementById("chips").innerHTML = categorias.map(c =>
+    `<button class="chip" aria-pressed="${c===categoria}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+}
+
+function pintarProductos(){
+  const lista = PRODUCTOS.filter(p =>
+    (categoria==="Todos" || p.categoria===categoria) &&
+    (p.nombre+" "+p.descripcion).toLowerCase().includes(texto));
+  document.getElementById("grid").innerHTML = lista.length ? lista.map(p => `
+    <article class="card">
+      <div class="pic">${p.imagen ? `<img src="${esc(p.imagen)}" alt="${esc(p.nombre)}" loading="lazy">` : esc(p.nombre.charAt(0))}</div>
+      <div class="body">
+        <span class="cat">${esc(p.categoria)}</span>
+        <h2 class="name">${esc(p.nombre)}</h2>
+        <p class="desc">${esc(p.descripcion)}</p>
+        <div class="price">${cop(p.precio)}</div>
+        <a class="buy" target="_blank" rel="noopener"
+           href="${wa(`Hola, vi en el catálogo de ${NEGOCIO} y quiero comprar: ${p.nombre} (${cop(p.precio)}).`)}">Comprar por WhatsApp</a>
+      </div>
+    </article>`).join("") : `<p class="empty">No encontramos productos con ese filtro.</p>`;
+}
+
+document.getElementById("chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if(!b) return;
+  categoria = b.dataset.c; pintarFiltros(); pintarProductos();
+});
+document.getElementById("q").addEventListener("input", e => { texto = e.target.value.toLowerCase().trim(); pintarProductos(); });
+document.getElementById("ask").href = wa(`Hola, vi el catálogo de ${NEGOCIO} y tengo una pregunta.`);
+
+pintarFiltros(); pintarProductos();
+</script>
+</body>
+</html>

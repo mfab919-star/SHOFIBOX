@@ -16,15 +16,21 @@ h1{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:clamp(2rem,6
 header p{margin:0;color:var(--muted);max-width:50ch}
 .tools{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 20px;max-width:1100px;margin:0 auto}
 .search{width:100%;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;margin-bottom:12px}
-.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chips-wrap{display:flex;align-items:center;gap:8px}
+.chips{flex:1;min-width:0;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;scroll-behavior:smooth}
+.arrow{display:none;flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:1.5rem;line-height:1;cursor:pointer;place-items:center;padding:0 0 3px}
+.arrow:hover:not(:disabled){background:var(--accent);color:var(--accent-ink)}
+.arrow:disabled{opacity:.3;cursor:default}
+.arrow:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (min-width:601px){.arrow{display:grid}}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;border:0;background:var(--chip);color:var(--ink);padding:9px 16px;border-radius:999px;font:inherit;font-weight:500;cursor:pointer}
 .chip[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
 .chip:focus-visible,.buy:focus-visible,.search:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 main{max-width:1100px;margin:0 auto;padding:8px 20px 80px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
-.pic{aspect-ratio:1/1;background:var(--chip);display:grid;place-items:center;font:800 4rem 'Bricolage Grotesque',sans-serif;color:var(--accent)}
-.pic img{width:100%;height:100%;object-fit:cover;display:block}
+.pic{position:relative;aspect-ratio:1/1;background:#fff;display:grid;place-items:center;font:800 4rem 'Bricolage Grotesque',sans-serif;color:var(--accent);overflow:hidden}
+.pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
 .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
 .cat{font-size:.85rem;color:var(--muted)}
 .name{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1.15rem;margin:0}
@@ -66,7 +72,11 @@ main{max-width:1100px;margin:0 auto;padding:8px 20px 80px;display:grid;grid-temp
 
 <div class="tools">
   <input class="search" id="q" type="search" placeholder="Buscar producto…" aria-label="Buscar producto">
-  <div class="chips" id="chips"></div>
+  <div class="chips-wrap">
+    <button class="arrow" id="prev" aria-label="Categorías anteriores">‹</button>
+    <div class="chips" id="chips"></div>
+    <button class="arrow" id="next" aria-label="Más categorías">›</button>
+  </div>
 </div>
 
 <main id="grid"></main>
@@ -88,14 +98,19 @@ main{max-width:1100px;margin:0 auto;padding:8px 20px 80px;display:grid;grid-temp
 <script>
 /* ============ 1) CONFIGURA AQUÍ ============ */
 const WHATSAPP = "573005343114";   // 57 = Colombia + tu número, sin espacios ni signos
-const NEGOCIO  = "Shofi Box";      // nombre que aparece en el mensaje
+const NEGOCIO  = "mi tienda";      // nombre que aparece en el mensaje
+
+/* Pega aquí el enlace CSV de tu Google Sheet (Archivo > Compartir > Publicar en la web > CSV).
+   Si lo dejas vacío "", se usa la lista de abajo. */
+const SHEET_CSV = "https://docs.google.com/spreadsheets/d/1uN239wPNuyFXdBpm5_V0_Yh_5t1WX0NVdII6uULpv7A/gviz/tq?tqx=out:csv&gid=212552700";
 
 /* ============ 2) TUS PRODUCTOS ============
    categoria: usa el mismo nombre exacto para agrupar (se crean solos los filtros)
    precio: solo números, sin puntos (ej. 45000)
    imagen: enlace a la foto, o "fotos/archivo.jpg" si la subes junto a este archivo. Déjalo "" si no tienes. */
 /* [nombre, categoría, precio, enlace de la foto, descripción]. Si dejas la foto vacía "", la busca en fotos/nombre-en-minúsculas.jpg */
-const PRODUCTOS = [
+/* Lista de respaldo: se muestra si no hay hoja de Google o si falla la conexión */
+let PRODUCTOS = [
   ["Perro mascota de peluche", "Juguetes y bebés", 49900, "https://app-creation-help-25.emergent.host/api/images/img_205b9b6e8dc64883", ""],
   ["Consola de juegos Nintendo con 620 juegos", "Juguetes y bebés", 39900, "https://app-creation-help-25.emergent.host/api/images/img_f55219c3a5e9488d", ""],
   ["Aerógrafo Wmark NG AB 001", "Belleza y cuidado personal", 219900, "https://app-creation-help-25.emergent.host/api/images/img_9f144105c49645bc", ""],
@@ -366,10 +381,7 @@ const PRODUCTOS = [
   ["Juego de dominó", "Juguetes y bebés", 49900, "https://vercatalogo101.nyc3.cdn.digitaloceanspaces.com/images/variedades_tv_calle_14/18a89d803eb-_variedades_tv_calle_14-a3i2m3kgbvo-2hf6y9z6uu8.png", ""],
   ["Juego de póker de 300 piezas", "Juguetes y bebés", 104900, "https://vercatalogo101.nyc3.cdn.digitaloceanspaces.com/images/variedadestvbogota/19d0295a96b-variedadestvbogota-g11aphiyx5o-btwgi6gj1h.png", ""],
   ["Set de arte 208 piezas solo azul", "Juguetes y bebés", 26900, "https://vercatalogo101.nyc3.cdn.digitaloceanspaces.com/images/variedadestvbogota/19f2014d6f7-variedadestvbogota-x50q2g5rsx-mkynsbk3kdl.png", ""],
-  ["Alcancía cajero automático", "Juguetes y bebés", 104900, "https://vercatalogo101.nyc3.cdn.digitaloceanspaces.com/images/variedades_tv_calle_14/18a89dfbca5-_variedades_tv_calle_14-s3vvsp5h3gg-q8ck9czgjzl.png", ""],
-  ["Patineta 5 en 1 mariquita", "Juguetes y bebés", 99900, "", ""],
-  ["Canguro para bebé", "Juguetes y bebés", 15900, "", ""],
-  ["Estuche de marcadores 80 piezas", "Juguetes y bebés", 26900, "", ""],
+  ["Alcancía cajero automático", "Juguetes y bebés", 104900, "https://vercatalogo101.nyc3.cdn.digitaloceanspaces.com/images/variedades_tv_calle_14/18a89dfbca5-_variedades_tv_calle_14-s3vvsp5h3gg-q8ck9czgjzl.png", ""]
 ].map(([nombre,categoria,precio,imagen,descripcion])=>({nombre,categoria,precio,descripcion:descripcion||"",imagen:imagen||""}));
 
 /* ============ 3) LÓGICA (no necesitas tocar) ============ */
@@ -380,12 +392,27 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">"
 const slug = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 const foto = p => p.imagen || ("fotos/" + slug(p.nombre) + ".jpg");
 let categoria = "Todos", texto = "";
-const categorias = ["Todos", ...new Set(PRODUCTOS.map(p => p.categoria))];
+let categorias = [];
+const calcCategorias = () => { categorias = ["Todos", ...new Set(PRODUCTOS.map(p => p.categoria))]; };
+calcCategorias();
 
 function pintarFiltros(){
   document.getElementById("chips").innerHTML = categorias.map(c =>
     `<button class="chip" aria-pressed="${c===categoria}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+  flechas();
 }
+
+/* Flechas para mover las categorías en computador */
+const chipsEl = document.getElementById("chips"), prev = document.getElementById("prev"), next = document.getElementById("next");
+function flechas(){
+  const max = chipsEl.scrollWidth - chipsEl.clientWidth;
+  prev.disabled = chipsEl.scrollLeft <= 2;
+  next.disabled = chipsEl.scrollLeft >= max - 2;
+}
+prev.addEventListener("click", () => chipsEl.scrollBy({left: -chipsEl.clientWidth * 0.7}));
+next.addEventListener("click", () => chipsEl.scrollBy({left:  chipsEl.clientWidth * 0.7}));
+chipsEl.addEventListener("scroll", flechas, {passive:true});
+window.addEventListener("resize", flechas);
 
 function pintarProductos(){
   const lista = PRODUCTOS.filter(p =>
@@ -436,6 +463,50 @@ lb.addEventListener("click", e => { if(!e.target.closest("#lbBuy")) cerrar(); })
 document.addEventListener("keydown", e => { if(e.key === "Escape") cerrar(); });
 
 pintarFiltros(); pintarProductos();
+
+/* ============ GOOGLE SHEETS ============ */
+function parseCSV(t){
+  const rows = []; let row = [], cur = "", q = false;
+  t = t.replace(/^\uFEFF/, "");
+  for (let i = 0; i < t.length; i++){
+    const c = t[i];
+    if (q){
+      if (c === '"'){ if (t[i+1] === '"'){ cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ","){ row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r"){
+      if (c === "\r" && t[i+1] === "\n") i++;
+      row.push(cur); rows.push(row); row = []; cur = "";
+    } else cur += c;
+  }
+  if (cur !== "" || row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+async function cargarHoja(){
+  if (!SHEET_CSV) return;
+  try{
+    const r = await fetch(SHEET_CSV);
+    if (!r.ok) throw new Error(r.status);
+    const rows = parseCSV(await r.text()).filter(f => f.some(x => x.trim()));
+    const head = rows.shift().map(h => slug(h));
+    const col = (n, d) => { const k = head.indexOf(n); return k >= 0 ? k : d; };
+    const [a, b, c, d, e] = [col("nombre",0), col("categoria",1), col("precio",2), col("imagen",3), col("descripcion",4)];
+    const lista = rows.map(f => ({
+      nombre: (f[a]||"").trim(),
+      categoria: (f[b]||"").trim() || "Otros",
+      precio: parseInt(String(f[c]||"").replace(/\D/g,""), 10) || 0,
+      imagen: (f[d]||"").trim(),
+      descripcion: (f[e]||"").trim()
+    })).filter(p => p.nombre);
+    if (!lista.length) throw new Error("hoja vacía");
+    PRODUCTOS = lista; calcCategorias();
+    if (!categorias.includes(categoria)) categoria = "Todos";
+    pintarFiltros(); pintarProductos();
+  }catch(err){ console.warn("No se pudo leer la hoja, se usa la lista de respaldo.", err); }
+}
+cargarHoja();
 </script>
 </body>
 </html>
+

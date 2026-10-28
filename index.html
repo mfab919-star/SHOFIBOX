@@ -33,6 +33,28 @@ main{max-width:1100px;margin:0 auto;padding:8px 20px 80px;display:grid;grid-temp
 .buy{display:block;text-align:center;text-decoration:none;background:var(--accent);color:var(--accent-ink);padding:12px;border-radius:12px;font-weight:600;margin-top:8px}
 .empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 0}
 .float{position:fixed;right:16px;bottom:16px;background:var(--accent);color:var(--accent-ink);padding:14px 20px;border-radius:999px;text-decoration:none;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.pic img{cursor:zoom-in}
+.lb{position:fixed;inset:0;z-index:20;background:rgba(15,8,28,.9);display:flex;align-items:center;justify-content:center;padding:16px}
+.lb[hidden]{display:none}
+.lb figure{margin:0;width:100%;max-width:min(92vw,520px);display:flex;flex-direction:column;align-items:center;gap:12px}
+.lb img{max-width:100%;max-height:68vh;object-fit:contain;border-radius:14px;background:#fff}
+.lb figcaption{color:#fff;text-align:center;display:flex;flex-direction:column;gap:4px;width:100%}
+.lb figcaption strong{font-family:'Bricolage Grotesque',sans-serif;font-size:1.1rem}
+.lb-x{position:absolute;top:max(12px,env(safe-area-inset-top));right:14px;width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:1.2rem;cursor:pointer}
+@media (max-width:600px){
+  header{padding:28px 14px 4px}
+  .tools{padding:10px 14px}
+  main{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:6px 14px 90px}
+  .card{border-radius:12px}
+  .body{padding:9px 10px 11px;gap:3px}
+  .cat{font-size:.72rem}
+  .name{font-size:.92rem;line-height:1.2;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .desc{font-size:.8rem}
+  .price{font-size:1rem;margin-top:2px}
+  .buy{padding:9px 6px;font-size:.8rem;border-radius:10px;margin-top:6px}
+  .pic{font-size:3rem}
+  .float{padding:12px 16px;font-size:.9rem}
+}
 </style>
 </head>
 <body>
@@ -50,6 +72,18 @@ main{max-width:1100px;margin:0 auto;padding:8px 20px 80px;display:grid;grid-temp
 <main id="grid"></main>
 
 <a class="float" id="ask" href="#" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>
+
+<div class="lb" id="lb" hidden>
+  <button class="lb-x" aria-label="Cerrar">✕</button>
+  <figure>
+    <img id="lbImg" alt="">
+    <figcaption>
+      <strong id="lbName"></strong>
+      <span id="lbPrice"></span>
+      <a id="lbBuy" class="buy" target="_blank" rel="noopener">Comprar por WhatsApp</a>
+    </figcaption>
+  </figure>
+</div>
 
 <script>
 /* ============ 1) CONFIGURA AQUÍ ============ */
@@ -278,7 +312,7 @@ function pintarProductos(){
     (categoria==="Todos" || p.categoria===categoria) &&
     (p.nombre+" "+p.descripcion).toLowerCase().includes(texto));
   document.getElementById("grid").innerHTML = lista.length ? lista.map(p => `
-    <article class="card">
+    <article class="card" data-i="${PRODUCTOS.indexOf(p)}">
       <div class="pic"><img src="${esc(foto(p))}" alt="${esc(p.nombre)}" loading="lazy" onerror="this.parentNode.textContent=this.alt.charAt(0)"></div>
       <div class="body">
         <span class="cat">${esc(p.categoria)}</span>
@@ -291,12 +325,35 @@ function pintarProductos(){
     </article>`).join("") : `<p class="empty">No encontramos productos con ese filtro.</p>`;
 }
 
+/* Al cambiar de categoría o buscar, sube la vista al inicio de los productos */
+function subir(){
+  const tope = document.querySelector("header").offsetHeight;
+  if (window.scrollY > tope) window.scrollTo({top: tope, behavior: "smooth"});
+}
 document.getElementById("chips").addEventListener("click", e => {
   const b = e.target.closest(".chip"); if(!b) return;
-  categoria = b.dataset.c; pintarFiltros(); pintarProductos();
+  categoria = b.dataset.c;
+  document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b));
+  pintarProductos(); subir();
 });
-document.getElementById("q").addEventListener("input", e => { texto = e.target.value.toLowerCase().trim(); pintarProductos(); });
+document.getElementById("q").addEventListener("input", e => { texto = e.target.value.toLowerCase().trim(); pintarProductos(); subir(); });
 document.getElementById("ask").href = wa(`Hola, vi el catálogo de ${NEGOCIO} y tengo una pregunta.`);
+
+/* Ampliar foto al tocarla */
+const lb = document.getElementById("lb");
+document.getElementById("grid").addEventListener("click", e => {
+  const img = e.target.closest(".pic img"); if(!img) return;
+  const p = PRODUCTOS[+img.closest(".card").dataset.i];
+  const g = document.getElementById("lbImg");
+  g.src = foto(p); g.alt = p.nombre;
+  document.getElementById("lbName").textContent = p.nombre;
+  document.getElementById("lbPrice").textContent = cop(p.precio);
+  document.getElementById("lbBuy").href = wa(`Hola, vi en el catálogo de ${NEGOCIO} y quiero comprar: ${p.nombre} (${cop(p.precio)}).`);
+  lb.hidden = false; document.body.style.overflow = "hidden";
+});
+function cerrar(){ lb.hidden = true; document.body.style.overflow = ""; }
+lb.addEventListener("click", e => { if(!e.target.closest("#lbBuy")) cerrar(); });
+document.addEventListener("keydown", e => { if(e.key === "Escape") cerrar(); });
 
 pintarFiltros(); pintarProductos();
 </script>
